@@ -1123,18 +1123,21 @@ td.c{text-align:center}
 /* ══════════════════════════════════════════
    CONSTANTES
 ══════════════════════════════════════════ */
-const STATUSES = ['','SI','RET. >10','RET. <10','FALTA','INCAPACIDAD','PSG','PCG','CASTIGO'];
+const STATUSES = ['','SI','NO','LLEGA TARDE >10','LLEGA TARDE <10','FALTA','INCAPACIDAD','PSG','PCG','P. ENTRADA TARDE','VACACIONES','CASTIGO'];
 const SC = {
-  'SI':           {bg:'var(--si-bg)',  fg:'var(--si-fg)',  br:'var(--si-br)',  lbl:'SI'},
-  'RET. >10':     {bg:'var(--r2-bg)',  fg:'var(--r2-fg)',  br:'var(--r2-br)',  lbl:'RET. >10'},
-  'RET. <10':     {bg:'var(--r1-bg)',  fg:'var(--r1-fg)',  br:'var(--r1-br)',  lbl:'RET. <10'},
-  'FALTA':        {bg:'var(--na-bg)',  fg:'var(--na-fg)',  br:'var(--na-br)',  lbl:'FALTA'},
-  'INCAPACIDAD':  {bg:'var(--inc-bg)', fg:'var(--inc-fg)', br:'var(--inc-br)', lbl:'INCAPACIDAD'},
-  'PSG':          {bg:'var(--psg-bg)', fg:'var(--psg-fg)', br:'var(--psg-br)', lbl:'PSG'},
-  'PCG':          {bg:'var(--vac-bg)', fg:'var(--vac-fg)', br:'var(--vac-br)', lbl:'PCG'},
-  'CASTIGO':      {bg:'#fef2f2',       fg:'#991b1b',       br:'#fecaca',       lbl:'CASTIGO'},
+  'SI':               {bg:'var(--si-bg)',  fg:'var(--si-fg)',  br:'var(--si-br)',  lbl:'SI'},
+  'NO':               {bg:'#fee2e2',       fg:'#7f1d1d',       br:'#fecaca',       lbl:'NO'},
+  'LLEGA TARDE >10':  {bg:'var(--r2-bg)',  fg:'var(--r2-fg)',  br:'var(--r2-br)',  lbl:'LLEGA TARDE >10'},
+  'LLEGA TARDE <10':  {bg:'var(--r1-bg)',  fg:'var(--r1-fg)',  br:'var(--r1-br)',  lbl:'LLEGA TARDE <10'},
+  'FALTA':            {bg:'var(--na-bg)',  fg:'var(--na-fg)',  br:'var(--na-br)',  lbl:'FALTA'},
+  'INCAPACIDAD':      {bg:'var(--inc-bg)', fg:'var(--inc-fg)', br:'var(--inc-br)', lbl:'INCAPACIDAD'},
+  'PSG':              {bg:'var(--psg-bg)', fg:'var(--psg-fg)', br:'var(--psg-br)', lbl:'PSG'},
+  'PCG':              {bg:'var(--vac-bg)', fg:'var(--vac-fg)', br:'var(--vac-br)', lbl:'PCG'},
+  'P. ENTRADA TARDE': {bg:'#fef3c7',       fg:'#92400e',       br:'#fde68a',       lbl:'P. ENTRADA TARDE'},
+  'VACACIONES':       {bg:'#d1fae5',       fg:'#065f46',       br:'#6ee7b7',       lbl:'VACACIONES'},
+  'CASTIGO':          {bg:'#fef2f2',       fg:'#991b1b',       br:'#fecaca',       lbl:'CASTIGO'},
 };
-const TURN_NAME  = {1:'Turno 1 · Matutino',2:'Turno 2 · Vespertino',3:'Turno 3 · Nocturno','mix':'Mixto / Administrativo'};
+const TURN_NAME  = {1:'Turno 1 · 07:00-15:00',2:'Turno 2 · 15:00-23:00',3:'Turno 3 · 23:00-07:00','mix':'Mixto / Administrativo'};
 const TURN_SHORT = {1:'T1',2:'T2',3:'T3','mix':'MIX'};
 const TURN_COLOR = {1:'#2563eb',2:'#7c3aed',3:'#c2410c','mix':'#15803d'};
 const TURN_CLASS = {1:'t1',2:'t2',3:'t3','mix':'tmix'};
@@ -1430,7 +1433,7 @@ function detectTurno() {
 function calcMetrics(team) {
   const t=team.length;
   const si=team.filter(m=>m.status==='SI').length;
-  const ret=team.filter(m=>m.status==='RET. <10'||m.status==='RET. >10').length;
+  const ret=team.filter(m=>m.status==='LLEGA TARDE <10'||m.status==='LLEGA TARDE >10').length;
   const no=team.filter(m=>m.status==='FALTA').length;
   const inc=team.filter(m=>m.status==='INCAPACIDAD').length;
   const psg=team.filter(m=>m.status==='PSG').length;
@@ -1597,7 +1600,14 @@ function doLogin() {
       svId: sv.id,
       proceso: proc.name,
       procesoId: proc.id,
-      date: today,
+      date: (() => {
+        // T3 (23:00-07:00): si son las 00:00-06:59, retroceder un día para que la sesión pertenezca al día de inicio del turno
+        if (turno == 3 && new Date().getHours() < 7) {
+          const d = new Date(); d.setDate(d.getDate()-1);
+          return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+        }
+        return today;
+      })(),
       team: [],
     };
     S.sessions.push(session);
@@ -2476,11 +2486,13 @@ function renderMonthSummary() {
    Cuenta sólo: Falta, Retardo (<10 y >10), Permiso (CG/SG/Vacaciones), Incapacidad
 ══════════════════════════════════════════ */
 const INC_TYPES = {
-  falta:    { label:'Faltas',         color:'#dc2626', states:['FALTA'] },
-  retardo:  { label:'Retardos',       color:'#f59e0b', states:['RET. <10','RET. >10'] },
-  permiso:  { label:'Permisos',       color:'#3b82f6', states:['PCG','PSG'] },
-  incap:    { label:'Incapacidades',  color:'#8b5cf6', states:['INCAPACIDAD'] },
-  castigo:  { label:'Castigos',       color:'#991b1b', states:['CASTIGO'] },
+  falta:    { label:'Faltas',            color:'#dc2626', states:['FALTA'] },
+  retardo:  { label:'Llega Tarde',       color:'#f59e0b', states:['LLEGA TARDE <10','LLEGA TARDE >10'] },
+  permiso:  { label:'Permisos',          color:'#3b82f6', states:['PCG','PSG','P. ENTRADA TARDE'] },
+  incap:    { label:'Incapacidades',     color:'#8b5cf6', states:['INCAPACIDAD'] },
+  castigo:  { label:'Castigos',          color:'#991b1b', states:['CASTIGO'] },
+  vacacion: { label:'Vacaciones',        color:'#065f46', states:['VACACIONES'] },
+  no:       { label:'No asistió reunión',color:'#7f1d1d', states:['NO'] },
 };
 function _isIncidencia(status) {
   if (!status) return null;
